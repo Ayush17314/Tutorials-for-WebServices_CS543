@@ -1,4 +1,6 @@
-# CampusEats Catalogue — Node & Express
+# CampusEats Catalogue — Node & Express__CS543
+## Name :- Ayush Kumar Dubey  
+## Roll no:- 20251651030
 
 ```bash 
   Run:
@@ -8,3 +10,4 @@
   npm start
   ```
 then open http://localhost:3000
+
