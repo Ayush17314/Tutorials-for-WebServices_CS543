@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CampusEats Secured Catalogue (TUT-9)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>CampusEats Secured Catalogue</h1>
+  <p class="sub">CS543 Web Services &mdash; API Security with JWT & bcrypt (TUT-9)</p>
+
+  <!-- 1. AUTHENTICATION SECTION -->
+  <div class="card auth-card">
+    <h3>1. Authentication (Login & JWT)</h3>
+    <p style="font-size: 0.9rem; color: #5d6577; margin-bottom: 0.8rem;">
+      Test login to obtain a signed JWT with role: <code>customer</code> or <code>restaurant</code>.
+    </p>
+
+    <div class="btn-group">
+      <button type="button" class="btn-primary" onclick="quickLogin('asha@campus.edu', 'customer123')">
+        Quick Login: Asha (Customer)
+      </button>
+      <button type="button" class="btn-success" onclick="quickLogin('mealhub@campus.edu', 'resto123')">
+        Quick Login: MealHub (Restaurant)
+      </button>
+      <button type="button" class="btn-danger" onclick="logout()">
+        Logout (Clear Token)
+      </button>
+    </div>
+
+    <form id="customLoginForm" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+      <input id="loginEmail" type="email" placeholder="Email" style="flex: 1; min-width: 180px;">
+      <input id="loginPassword" type="password" placeholder="Password" style="flex: 1; min-width: 140px;">
+      <button type="submit" class="btn-outline">Custom Login</button>
+    </form>
+
+    <div class="auth-status" id="authStatusBox">
+      Status: <span id="authBadge" class="badge badge-guest">Not Authenticated</span>
+      <div id="tokenInfo" style="margin-top: 0.4rem; word-break: break-all; color: #555;">No token present (Requests will receive 401).</div>
+    </div>
+  </div>
+
+  <!-- 2. CATALOGUE MENU SECTION -->
+  <div class="card menu-card">
+    <h3>2. Catalogue Menu (GET /items)</h3>
+    <p style="font-size: 0.9rem; color: #5d6577; margin-bottom: 0.8rem;">
+      Requires a valid token (any role: <code>customer</code> or <code>restaurant</code>).
+    </p>
+    <div class="btn-group">
+      <button type="button" class="btn-primary" onclick="loadItems()">
+        Fetch Menu with Token
+      </button>
+      <button type="button" class="btn-outline" onclick="loadItemsWithoutToken()">
+        Fetch Menu Without Token (Test 401)
+      </button>
+    </div>
+
+    <div id="list">Click a button above to load the menu.</div>
+    <div id="menuResponse" class="response-box"></div>
+  </div>
+
+  <!-- 3. AUTHORIZATION SECTION (ADD DISH) -->
+  <div class="card form-card">
+    <h3>3. Authorization Check (POST /items)</h3>
+    <p style="font-size: 0.9rem; color: #5d6577; margin-bottom: 0.8rem;">
+      Only role <code>restaurant</code> (or <code>admin</code>) is authorized. Role <code>customer</code> will receive <strong>403 Forbidden</strong>.
+    </p>
+
+    <form id="addForm">
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <input id="dishName" placeholder="Dish name (e.g. Masala Dosa)" required style="flex: 2; min-width: 180px;">
+        <input id="dishPrice" type="number" placeholder="Price (₹)" required style="flex: 1; min-width: 100px;">
+        <button type="submit" class="btn-primary">Add Dish (POST /items)</button>
+      </div>
+    </form>
+
+    <div id="addResponse" class="response-box"></div>
+  </div>
+
+  <script>
+    let currentToken = localStorage.getItem('jwt_token') || '';
+    let currentRole = localStorage.getItem('jwt_role') || '';
+    let currentEmail = localStorage.getItem('jwt_email') || '';
+
+    function updateAuthUI() {
+      const authBadge = document.getElementById('authBadge');
+      const tokenInfo = document.getElementById('tokenInfo');
+
+      if (!currentToken) {
+        authBadge.className = 'badge badge-guest';
+        authBadge.textContent = 'Not Authenticated (Guest)';
+        tokenInfo.innerHTML = '<em>No Authorization header will be sent. Protected routes will return 401.</em>';
+      } else {
+        authBadge.className = currentRole === 'restaurant' ? 'badge badge-restaurant' : 'badge badge-customer';
+        authBadge.textContent = `Logged in: ${currentEmail} (Role: ${currentRole})`;
+        tokenInfo.innerHTML = `<strong>Token:</strong> <code>${currentToken.substring(0, 35)}...</code>`;
+      }
+    }
+
+    async function quickLogin(email, password) {
+      await performLogin(email, password);
+    }
+
+    document.getElementById('customLoginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      await performLogin(email, password);
+    });
+
+    async function performLogin(email, password) {
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          currentToken = data.token;
+          // Decode payload from JWT
+          const payload = JSON.parse(atob(data.token.split('.')[1]));
+          currentRole = payload.role;
+          currentEmail = email;
+          localStorage.setItem('jwt_token', currentToken);
+          localStorage.setItem('jwt_role', currentRole);
+          localStorage.setItem('jwt_email', currentEmail);
+          updateAuthUI();
+          showBox('menuResponse', `Login successful! Token generated for ${email} with role: ${currentRole}`, 'res-success');
+          loadItems();
+        } else {
+          showBox('menuResponse', `Login failed (HTTP ${res.status}): ${data.error}`, 'res-error');
+        }
+      } catch (err) {
+        showBox('menuResponse', `Error connecting to server: ${err.message}`, 'res-error');
+      }
+    }
+
+    function logout() {
+      currentToken = '';
+      currentRole = '';
+      currentEmail = '';
+      localStorage.removeItem('jwt_token');
+      localStorage.removeItem('jwt_role');
+      localStorage.removeItem('jwt_email');
+      updateAuthUI();
+      document.getElementById('list').innerHTML = '<div style="color: #777;">Logged out. Click "Fetch Menu" to test 401.</div>';
+      showBox('menuResponse', 'Logged out. Token cleared.', 'res-warning');
+    }
+
+    async function loadItems() {
+      await fetchItemsWithHeader(currentToken ? `Bearer ${currentToken}` : '');
+    }
+
+    async function loadItemsWithoutToken() {
+      await fetchItemsWithHeader('');
+    }
+
+    async function fetchItemsWithHeader(authHeader) {
+      const headers = {};
+      if (authHeader) headers['Authorization'] = authHeader;
+
+      try {
+        const res = await fetch('/items', { headers });
+        const data = await res.json();
+
+        if (res.ok) {
+          document.getElementById('list').innerHTML = data.map(i =>
+            `<div class="dish"><span class="name">${i.name}</span><span class="price">&#8377;${i.price}</span></div>`
+          ).join('');
+          showBox('menuResponse', `HTTP 200 OK — Successfully retrieved ${data.length} dishes.`, 'res-success');
+        } else {
+          document.getElementById('list').innerHTML = `<div style="color: #e74c3c; font-weight: 600;">Failed to load menu (HTTP ${res.status}).</div>`;
+          showBox('menuResponse', `HTTP ${res.status} ${res.status === 401 ? 'Unauthorized' : 'Error'}: ${JSON.stringify(data)}`, 'res-error');
+        }
+      } catch (err) {
+        showBox('menuResponse', `Network error: ${err.message}`, 'res-error');
+      }
+    }
+
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('dishName').value;
+      const price = document.getElementById('dishPrice').value;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
+
+      try {
+        const res = await fetch('/items', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ name, price })
+        });
+        const data = await res.json();
+
+        if (res.status === 201) {
+          showBox('addResponse', `HTTP 201 Created — Added "${data.name}" (ID: ${data.id}, Price: ₹${data.price})`, 'res-success');
+          e.target.reset();
+          loadItems();
+        } else if (res.status === 403) {
+          showBox('addResponse', `HTTP 403 Forbidden — ${JSON.stringify(data)} (Your role "${currentRole}" is not authorized. Only "restaurant" can add items).`, 'res-warning');
+        } else if (res.status === 401) {
+          showBox('addResponse', `HTTP 401 Unauthorized — ${JSON.stringify(data)} (Please log in first).`, 'res-error');
+        } else {
+          showBox('addResponse', `HTTP ${res.status}: ${JSON.stringify(data)}`, 'res-error');
+        }
+      } catch (err) {
+        showBox('addResponse', `Network error: ${err.message}`, 'res-error');
+      }
+    });
+
+    function showBox(id, message, className) {
+      const box = document.getElementById(id);
+      box.className = `response-box ${className}`;
+      box.textContent = message;
+      box.style.display = 'block';
+    }
+
+    updateAuthUI();
+    if (currentToken) loadItems();
+  </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "tut-9",
+  "version": "1.0.0",
+  "description": "API Security Tutorial - Securing the Catalogue API with JWT and bcrypt",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "jwt",
+    "bcrypt",
+    "express",
+    "authentication",
+    "authorization"
+  ],
+  "author": "Ayush Kumar Dubey",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
